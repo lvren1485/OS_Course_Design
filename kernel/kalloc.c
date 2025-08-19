@@ -80,3 +80,20 @@ kalloc(void)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
 }
+
+// 添加这个函数来计算空闲内存
+uint64
+kfreemem(void)
+{
+  struct run *r;
+  uint64 pages = 0;
+
+  acquire(&kmem.lock);
+  r = kmem.freelist;
+  while(r){
+    pages++;
+    r = r->next;
+  }
+  release(&kmem.lock);
+  return pages * PGSIZE; // 页数 * 每页字节数 = 总空闲字节数
+}

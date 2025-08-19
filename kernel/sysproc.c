@@ -6,6 +6,11 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "sysinfo.h" // 添加这一行
+
+// 在文件顶部添加extern声明，告诉编译器函数在其他文件中定义
+extern uint64 kfreemem(void);
+extern uint64 nproc(void);
 
 uint64
 sys_exit(void)
@@ -94,4 +99,39 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+uint64
+sys_trace(void)
+{
+  int mask;
+
+  // 从用户空间获取第一个参数（mask）
+  if(argint(0, &mask) < 0)
+    return -1;
+  
+  // 将 mask 赋值给当前进程的 trace_mask 字段
+  myproc()->trace_mask = mask;
+  return 0;
+}
+
+uint64
+sys_sysinfo(void)
+{
+  uint64 addr; // user pointer to struct sysinfo
+  struct sysinfo info;
+
+  // 从用户空间获取参数（指向sysinfo结构体的指针）
+  if(argaddr(0, &addr) < 0)
+    return -1;
+
+  // 填充sysinfo结构体
+  info.freemem = kfreemem();
+  info.nproc = nproc();
+
+  // 使用copyout将内核中的info结构体复制到用户空间地址addr处
+  if(copyout(myproc()->pagetable, addr, (char *)&info, sizeof(info)) < 0)
+    return -1;
+
+  return 0;
 }
