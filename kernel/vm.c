@@ -432,3 +432,31 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+
+// 辅助递归函数
+void 
+vmprint_recursive(pagetable_t pagetable, int level)
+{
+  for(int i = 0; i < 512; i++){
+    pte_t pte = pagetable[i];
+    if(pte & PTE_V){
+      // 打印当前 PTE
+      for(int j = 0; j < level; j++){
+        printf(" ..");
+      }
+      printf("%d: pte %p pa %p\n", i, pte, PTE2PA(pte));
+      
+      // 如果这是指向下一级页表的 PTE，递归打印
+      if((pte & (PTE_R|PTE_W|PTE_X)) == 0){
+        vmprint_recursive((pagetable_t)PTE2PA(pte), level + 1);
+      }
+    }
+  }
+}
+
+void 
+vmprint(pagetable_t pagetable)
+{
+  printf("page table %p\n", pagetable);
+  vmprint_recursive(pagetable, 1);
+}
