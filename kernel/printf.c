@@ -121,6 +121,7 @@ panic(char *s)
   printf("panic: ");
   printf(s);
   printf("\n");
+  backtrace();
   panicked = 1; // freeze uart output from other CPUs
   for(;;)
     ;
@@ -131,4 +132,34 @@ printfinit(void)
 {
   initlock(&pr.lock, "pr");
   pr.locking = 1;
+}
+
+void
+backtrace(void)
+{
+  printf("backtrace:\n");
+  
+  // 获取当前帧指针
+  uint64 fp = r_fp();
+  
+  // 栈页的顶部边界 (PGROUNDUP) 用于终止循环
+  // 栈页的底部边界 (PGROUNDDOWN) 也可以使用
+  uint64 stack_page_top = PGROUNDUP(fp);
+  
+  // 遍历栈帧
+  // FP 指向当前栈帧的底部（高地址），保存的RA和FP在它的上方（低地址）
+  while (fp < stack_page_top) {
+    // 返回地址位于 fp - 8
+    uint64 ra = *(uint64*)(fp - 8);
+    printf("%p\n", ra);
+    
+    // 保存的帧指针（上一个栈帧的FP）位于 fp - 16
+    uint64 prev_fp = *(uint64*)(fp - 16);
+    
+    // 检查上一个帧指针是否有效，避免无限循环或错误访问
+    if (prev_fp <= fp || prev_fp >= stack_page_top) {
+      break;
+    }
+    fp = prev_fp;
+  }
 }

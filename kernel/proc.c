@@ -119,6 +119,19 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  
+  // Initialize alarm fields
+  /*
+  p->alarm_interval = 0;
+  p->alarm_handler = 0;
+  p->alarm_ticks = 0;
+  p->alarm_goingoff = 0;
+  p->alarm_trapframe = 0;*/
+	// 为保存的陷阱帧分配内存
+	//if((p->alarm_trapframe = (struct trapframe *)kalloc()) == 0){
+	//	release(&p->lock);
+	//	return 0;
+	//}
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -140,6 +153,11 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+
+  p->interval = 0;
+  p->handler = 0;
+  p->passedticks = 0;
+  p->trapframecopy = 0;
 
   return p;
 }
