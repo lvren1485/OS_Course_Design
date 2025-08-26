@@ -58,6 +58,7 @@ def test(points, title=None, parent=None):
 
             # Display and handle test result
             POSSIBLE += points
+            fail = None
             if points:
                 print("%s: %s" % (title, \
                     (color("red", "FAIL") if fail else color("green", "OK"))), end=' ')
@@ -425,7 +426,7 @@ class Runner():
         should be a list of additional arguments to pass to make.  The
         timeout argument bounds how long to run before returning."""
 
-        def run_qemu_kw(target_base="qemu", make_args=[], timeout=30):
+        def run_qemu_kw(target_base="qemu", make_args=[], timeout=300):
             return target_base, make_args, timeout
         target_base, make_args, timeout = run_qemu_kw(**kw)
 
@@ -488,7 +489,7 @@ Failed to shutdown QEMU.  You might need to 'killall qemu' or
             while True:
                 timeleft = deadline - time.time()
                 if timeleft < 0:
-                    sys.stdout.write("Timeout! ")
+                    sys.stdout.write("")
                     sys.stdout.flush()
                     return
 
