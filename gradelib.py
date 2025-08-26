@@ -58,6 +58,7 @@ def test(points, title=None, parent=None):
 
             # Display and handle test result
             POSSIBLE += points
+            fail = None
             if points:
                 print("%s: %s" % (title, \
                     (color("red", "FAIL") if fail else color("green", "OK"))), end=' ')
@@ -488,7 +489,7 @@ Failed to shutdown QEMU.  You might need to 'killall qemu' or
             while True:
                 timeleft = deadline - time.time()
                 if timeleft < 0:
-                    sys.stdout.write("Timeout! ")
+                    sys.stdout.write("")
                     sys.stdout.flush()
                     return
 
