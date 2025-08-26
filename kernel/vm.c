@@ -303,7 +303,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
+  // char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
@@ -312,13 +312,21 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
+    // 清除PTE_W标志
+    flags &= (~PTE_W);
+    // 添加PTE_RSW标志
+    flags |= PTE_RSW;  
+    // 清除父进程PTE的PTE_W标志
+    *pte &= (~PTE_W);
+    // 父进程PTE添加PTE_RSW标志
+    *pte |= PTE_RSW;
+    // 将父进程的物理内存映射到子进程的虚拟内存
+    if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0){
+      // kfree((void*)pa);
       goto err;
     }
+    // 映射成功，父进程的物理内存引用计数增加
+    mem_count_up(pa);
   }
   return 0;
 
@@ -347,6 +355,30 @@ int
 copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
   uint64 n, va0, pa0;
+
+  pte_t* pte;
+  uint64 fault_pa;
+  // 检验页面错误是否来自cow,若不为0，则为cow,需要分配新的物理内存
+  if((pte = cow_walk(pagetable, PGROUNDDOWN(dstva))) != 0){
+    fault_pa = PTE2PA(*pte);
+    // 分配新的物理地址
+    char* child_pa = kalloc();
+    if(child_pa == 0){
+      printf("copyout: alloc physical memory failed");
+      return -1;
+    }
+    // 将旧物理内存copy到新的物理内存
+    memmove(child_pa, (char *)fault_pa, PGSIZE);
+    // 子进程页表解除与原来父进程的物理内存映射
+    uvmunmap(pagetable, PGROUNDDOWN(dstva), 1, 0);
+    // 映射, 将出错的虚拟地址向下舍入到页面边界,因为va所在的这一页还没有对应的物理内存
+    if(mappages(pagetable, PGROUNDDOWN(dstva), PGSIZE, (uint64)child_pa, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
+      kfree(child_pa);
+      return -1;
+    }
+    // 内存计数减1，这里可能发生内存释放
+    kfree((void*)fault_pa);
+  }
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
@@ -431,4 +463,26 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+// 仿照walkaddr函数写一个函数用来检验虚拟地址是否是来自copy on write
+pte_t*
+cow_walk(pagetable_t pagetable, uint64 va)
+{
+  pte_t *pte;
+
+  if(va >= MAXVA)
+    return 0;
+
+  pte = walk(pagetable, va, 0);
+  if(pte == 0)
+    return 0;
+  if((*pte & PTE_V) == 0)
+    return 0;
+  if((*pte & PTE_U) == 0)
+    return 0;
+  // 检查是否来自cow的页面错误
+  if((*pte & PTE_RSW) == 0)
+    return 0;
+  return pte;
 }
